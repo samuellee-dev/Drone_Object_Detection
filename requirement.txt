@@ -1,0 +1,19 @@
+# 개발 환경: Python 3.13.5, CUDA 12.8 (NVIDIA GPU)
+
+# YOLO 학습/추론
+ultralytics==8.4.117
+numpy>=2.1
+
+# 영상 처리 (실시간 추론, 프레임 마스킹)
+opencv-python>=4.8
+
+# ONNX 변환 및 ONNX 런타임 추론 (convert.py, best.onnx)
+onnx>=1.22
+onnxruntime-gpu>=1.28
+onnxslim>=0.1.9
+
+# PyTorch (학습/PT 모델 추론에 필요, CUDA 버전에 맞는 인덱스에서 설치 권장)
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0
+torchvision==0.26.0
+torchaudio==2.11.0

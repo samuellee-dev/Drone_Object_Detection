@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 모델 가중치 / 변환 결과 (용량 큼, 필요한 것만 git add -f 로 개별 추가)
+*.pt
+*.onnx
+
+# YOLO 라벨 캐시 (로컬 재생성 파일)
+*.cache
+
+# 데이터셋 원본 이미지 / 백업 / 압축 파일 (재다운로드·재생성 가능)
+datasets/VisDrone/images/
+datasets/VisDrone/labels_orig/
+datasets/VisDrone/labels_person_merged_backup/
+datasets/VisDrone/*.zip
+
+# 학습 산출물 중 대용량 시각화 이미지
+runs/**/train_batch*.jpg
+runs/**/val_batch*.jpg
