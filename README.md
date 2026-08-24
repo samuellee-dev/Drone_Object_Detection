@@ -1,11 +1,15 @@
-# HKIT_Drone
+# Drone Object Detection
 
 <p align="center">
   <img src="docs/images/Object_Detection.png" width="850">
 </p>
 
-YOLO 모델 학습 기반 온디바이스 환경 및 기업 제공 영상에 최적화된 객체 인식 프로젝트
-YOLO 모델 학습 기반 온디바이스 환경 및 기업 제공 영상에 최적화된 객체 인식 프로젝트
+**YOLO 모델 학습 기반, 온디바이스 환경 및 기업 제공 영상에 최적화된 객체 인식 프로젝트**
+
+### 결과물
+
+- **발표자료** — [docs/presentation.pptx](docs/presentation.pptx)
+- **시연 영상** — [docs/demo.mp4](docs/demo.mp4)
 
 ## 프로젝트 목적
 
@@ -23,8 +27,18 @@ YOLO 모델 학습 기반 온디바이스 환경 및 기업 제공 영상에 최
 - **모델 경량화/배포**: ONNX
 - **학습 데이터셋**: VisDrone (오픈 데이터셋)
 - **개발 도구**: Visual Studio Code
-- **학습 환경**: NVIDIA GPU 기반 CUDA 환경
 - **테스트 데이터**: 기업 제공 실제 드론 영상
+
+### 실행 환경 구분
+
+학습 환경(PC)과 배포 환경(Jetson)의 하드웨어·라이브러리 제약이 달라 두 환경을 분리해 구성했다.
+
+| 구분 | 학습/개발 PC | 온디바이스 (NVIDIA Jetson) |
+|---|---|---|
+| OS / Python | Python 3.13.5 | Ubuntu, Python 3.8 |
+| GPU | NVIDIA GPU, CUDA 12.8 | CUDA 10.2 |
+| 추론 방식 | PyTorch (`.pt`) | ONNX Runtime (`.onnx`) |
+| 비고 | `requirement.txt` 기준 | 구형 하드웨어로 최신 PyTorch 연산에 제약이 있어 ONNX 변환 후 런타임으로 추론 |
 
 ## 프로젝트 구조
 
@@ -42,20 +56,52 @@ detection/
 ├── merge_person.py                     # 1차 라벨 통합 스크립트 (person만 통합, 9클래스)
 ├── merge_classes.py                    # 2차 라벨 통합 스크립트 (person+car+tricycle 통합, 7클래스)
 ├── convert.py                          # PT -> ONNX 모델 변환
-├── main.py                             # ONNX 모델 기반 실시간 추론(트래킹)
+├── main.py                             # ONNX 모델 기반 실시간 추론(트래킹) — 온디바이스 최종본
 ├── main_track.py                       # PT 모델 기반 실시간 추론(트래킹, persist)
-├── main._predict.py                    # PT 모델 기반 실시간 추론(단일 프레임 예측)
+├── main_predict.py                     # PT 모델 기반 실시간 추론(단일 프레임 예측)
+├── docs/
+│   ├── presentation.pptx               # 최종 발표자료
+│   ├── demo.mp4                        # 시연 영상
+│   └── images/                         # README용 이미지
 ├── requirement.txt                     # 의존 패키지 목록
 └── README.md
 ```
 
 ## 설치
 
+### 개발 PC (학습 및 PC 추론)
+
 ```bash
 pip install -r requirement.txt
 ```
 
-CUDA 환경에 맞는 PyTorch가 필요하면 `requirement.txt` 하단 안내에 따라 별도 인덱스로 설치하세요.
+CUDA 환경에 맞는 PyTorch가 필요하면 `requirement.txt` 하단 안내에 따라 별도 인덱스로 설치한다.
+
+### 온디바이스 (NVIDIA Jetson)
+
+Jetson은 ARM64(aarch64) 아키텍처에 구형 CUDA(10.2)를 사용하므로,
+`requirement.txt`의 `onnxruntime-gpu`와 `torch`를 그대로 설치하면 안 된다.
+PyPI의 일반 배포본은 x86_64 + 최신 CUDA 기준으로 빌드되어 있어,
+설치가 되더라도 GPU 가속이 잡히지 않고 CPU로 fallback되어 FPS가 크게 저하된다.
+에러 없이 조용히 느려지기 때문에 확인이 필요하다.
+
+Jetson에서는 JetPack 버전에 맞는 NVIDIA 제공 wheel을 별도로 설치한다.
+
+| 패키지 | 설치 방법 |
+|---|---|
+| `onnxruntime-gpu` | NVIDIA Jetson Zoo 배포 wheel |
+| `torch` / `torchvision` | NVIDIA 제공 Jetson 전용 빌드 |
+| `opencv-python` | **pip 설치 금지.** Jetson에 시스템 OpenCV가 이미 설치된 경우가 많으며, pip으로 덮어쓰면 CUDA 지원이 빠진 빌드로 교체되어 오히려 느려진다. `python3 -c "import cv2; print(cv2.__version__)"`로 먼저 확인할 것 |
+| `ultralytics`, `onnx` | pip 설치 가능 |
+
+설치 후 ONNX Runtime이 실제로 GPU를 사용하는지 확인한다.
+
+```python
+import onnxruntime as ort
+print(ort.get_available_providers())
+# CUDAExecutionProvider가 목록에 있어야 GPU 가속이 동작한다.
+# CPUExecutionProvider만 나오면 wheel이 잘못 설치된 것이다.
+```
 
 ## 데이터셋 준비 및 라벨 재구성
 
@@ -115,7 +161,7 @@ python convert.py
 |---|---|---|
 | `main.py` | ONNX (`best.onnx`) | `model.track` (트래킹) |
 | `main_track.py` | PyTorch (`.pt`) | `model.track(persist=True)` (트래킹, ID 유지) |
-| `main._predict.py` | PyTorch (`.pt`) | `model.predict` (프레임 단위 탐지) |
+| `main_predict.py` | PyTorch (`.pt`) | `model.predict` (프레임 단위 탐지) |
 
 ```bash
 python main.py
@@ -123,7 +169,7 @@ python main.py
 
 화면에는 Bounding Box, 클래스, 신뢰도와 함께 실시간 FPS가 표시된다.
 
-## 실험 결과
+## 학습 실험 결과 (정확도)
 
 | 실험 | 모델 | 데이터(클래스 수) | Epoch | Precision | Recall | mAP50 | mAP50-95 |
 |---|---|---|---|---|---|---|---|
@@ -135,11 +181,53 @@ python main.py
 
 클래스 통합(10 → 9 → 7)과 학습 epoch 증가에 따라 mAP50, mAP50-95, Precision, Recall이 모두 단계적으로 개선되었으며, 최종적으로 `visdrone_merged_640_epoch100` 모델의 가중치를 `best.pt` / `best.onnx`로 사용한다.
 
-## 예상 결과물
+## 온디바이스 최적화 결과 (추론 속도)
 
-- 오픈 데이터셋 기반 YOLO 객체 탐지 학습 모델
-- 유사 클래스 통합 및 라벨 재구성을 적용한 학습 데이터셋
+PC에서 학습한 모델을 Jetson으로 그대로 포팅했을 때 심각한 병목이 발생했다.
+아래 세 단계를 거쳐 초기 대비 약 148%의 프레임 향상을 달성했다.
+
+| 단계 | 적용 내용 | FPS | 초기 대비 |
+|---|---|---|---|
+| 1차 포팅 | PyTorch 모델 그대로 이식 | 1.28 | 기준 |
+| 2차 | ONNX 변환 + 입력 해상도/FPS 조절 | 2.84 | 약 122% 향상 |
+| 3차 | 모델 아키텍처 업그레이드 (yolov5n → yolo26n) | 3.47 | 약 148% 향상 |
+
+### 입력 데이터 최적화
+
+원본 FHD 영상을 그대로 넣으면 연산 부하가 과도해 실시간 구동이 불가능했다.
+실시간성이 유지되는 최소 수준까지 해상도와 프레임을 낮춰 부하를 경감했다.
+
+| 구분 | 원본 영상 | 변환 영상 |
+|---|---|---|
+| 해상도 | 1920 × 1080 (FHD) | 960 × 540 |
+| FPS | 29.97 | 20 |
+
+### 정확도 저하 대응
+
+최적화로 인한 탐지율 저하를 아래 두 가지로 보완했다.
+
+- **UI 영역 마스킹** — 화면 상/하단의 고정 UI를 사람·차량으로 오인식하는 문제가 있어,
+  추론 직전 해당 영역을 검게 마스킹해 오탐지를 원천 차단했다.
+  단, 시각화는 마스킹되지 않은 원본 프레임 위에 그려 화면 품질을 유지한다.
+- **객체 추적 전환** — `model.predict`(프레임 단위 단순 탐지)에서
+  `model.track(persist=True)`로 전환해 프레임 간 연속성을 부여하고 순간적인 오탐지를 감소시켰다.
+
+## 결과물
+
+- 오픈 데이터셋 기반 YOLO 객체 탐지 학습 모델 (`best.pt` / `best.onnx`)
+- 유사 클래스 통합 및 라벨 재구성을 적용한 학습 데이터셋 (10 → 7클래스)
 - 해상도 및 FPS 조정을 적용한 드론 영상 전처리 결과
-- 기업 제공 실제 드론 영상에 대한 객체 탐지 결과 영상
-- Bounding Box, 클래스, 신뢰도가 표시된 실시간 객체 탐지 시스템
-- 온디바이스 환경에서의 추론 속도 및 모델 최적화 결과
+- 기업 제공 실제 드론 영상에 대한 객체 탐지 결과 영상 ([docs/demo.mp4](docs/demo.mp4))
+- Bounding Box, 클래스, 신뢰도, 실시간 FPS가 표시된 객체 탐지 시스템
+- 온디바이스 환경에서의 추론 속도 개선 결과 (1.28 → 3.47 FPS)
+
+## 향후 과제
+
+- 녹화 영상이 아닌 실시간 스트리밍 환경 구축 및 드론 제어 연동
+- 한국 환경에 맞는 자체 데이터셋 구축·라벨링을 통한 도메인 정확도 향상
+- C++ 기반 임베디드 연산 처리를 통한 상용화 수준의 경량화 파이프라인 구성
+
+## 참고 자료
+
+- [우크라전 전장서 '광섬유 드론' 공포 확산…전파 방해도 안통해 (연합뉴스, 2025.04.23)](https://www.yna.co.kr/view/AKR20250423131000009)
+- [VisDrone Dataset — Ultralytics](https://docs.ultralytics.com/ko/datasets/detect/visdrone)
